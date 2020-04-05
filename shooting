@@ -1,0 +1,72 @@
+#pragma strict
+
+var FiringPoint:Transform;
+var Bullet:Transform;
+var TargetPoint:Vector3;
+var Player:Healthbar;
+var Online:boolean;
+var Offline:boolean;
+var weapon:WeaponClass;
+
+function InitzializeShooting(){
+  yield WaitForSeconds(0.1);
+  this.enabled=false;
+  yield WaitForSeconds(0.1);
+  this.enabled=true;
+}
+
+function Start(){
+  InitzializeShooting();
+  Player=GetComponentInParent(Healthbar); 
+  if(Network.isClient||Network.isServer){
+    Online=true;
+    if(Player.GetComponent(NetworkView).isMine){
+    }else{
+      transform.GetComponent(AudioListener).enabled=false;
+      transform.GetComponent(Camera).enabled=false;
+      transform.GetComponent(MouseLook).enabled=false;
+    }
+  }else{
+    Offline=true;
+  }
+}
+
+function Update(){
+  var beam : Ray = transform.GetComponent.<Camera>().ViewportPointToRay (Vector3(0.5,0.5,0));
+  var hit : RaycastHit;
+  if(Player.GetComponent(NetworkView).isMine||Offline){
+    if(Input.GetKeyDown(KeyCode.Mouse0)){
+      if(transform.GetComponentInParent(CharacterInventory).ammo>0){
+        weapon=transform.GetComponentInChildren(WeaponClass);
+        if(weapon){
+          transform.GetComponentInParent(CharacterInventory).ammo-=1;
+          var layerMask = 1 << 8;
+          layerMask = ~layerMask;
+          if (Physics.Raycast (beam, hit,Mathf.Infinity,layerMask)){ 
+            TargetPoint=hit.point;
+            Debug.DrawLine (beam.origin, hit.point);      
+          }
+        }
+        var Gunshot : Transform;
+        var tempGunDamage:float=Random.Range(weapon.Damage,weapon.Damage-5);
+        Gunshot=Instantiate(Bullet,FiringPoint.position,transform.rotation);
+        Gunshot.GetComponent(Bullet_Controller).Damage=tempGunDamage;
+        Gunshot.GetComponent(Bullet_Controller).Point=TargetPoint;
+        Gunshot.GetComponent(Bullet_Controller).Player=Player.transform;
+        if(Online){
+          transform.GetComponent(NetworkView).RPC("OnlineGunshot",RPCMode.OthersBuffered,tempGunDamage,TargetPoint.x,TargetPoint.y,TargetPoint.z);
+        }
+      }
+    }
+  }
+  TargetPoint=new Vector3(0,0,0);
+}
+
+@RPC
+function OnlineGunshot(dam:float,x:float,y:float,z:float){
+  var GunshotOnline : Transform;
+  GunshotOnline=Instantiate(Bullet,FiringPoint.position,transform.rotation);
+  GunshotOnline.GetComponent(Bullet_Controller).Damage=dam;
+  GunshotOnline.GetComponent(Bullet_Controller).Point=Vector3(x,y,z);
+  GunshotOnline.GetComponent(Bullet_Controller).Player=Player.transform;
+}
