@@ -1,0 +1,74 @@
+#pragma strict
+
+public var X:float=1360;
+public var Y:float=598;
+ 
+var inventory:Items[];
+private var menu:Rect=new Rect(500,0,500,500);
+var useLegacyGUISystem:boolean;
+var ShowInventory:boolean;
+var InventoryAmount:int;
+var WeaponPoint:Transform;
+var WeaponToDestory:Transform;
+var ammo:int;
+var GrenadeAmmo:int;
+var AllWeapon:Transform[];
+ 
+function Start(){
+  AllWeapon=GameObject.Find("GameManager").GetComponent(AllWeaponsInGame).Weapons;
+}
+ 
+function OnGUI(){
+  GUI.matrix = Matrix4x4.TRS(Vector3.zero,Quaternion.identity,Vector3(1.0*Screen.width/X, 1.0*Screen.height/Y,1.0));
+  if(transform.GetComponent(PlayerOnlineController).Offline||transform.GetComponent(NetworkView).isMine){
+    if(Input.GetKeyDown(KeyCode.I)){
+      ShowInventory=true;
+    }
+    GUILayout.Box("bullets :"+ammo);
+    GUILayout.Box("Grenades :"+GrenadeAmmo);
+    if(ShowInventory){
+      menu = GUILayout.Window (0,menu ,InventoryMenu, "Unity");
+    }
+  }
+}
+ 
+function InventoryMenu(){
+  GUILayout.Label("Inventory Menu");
+  for(var item:Items in inventory){
+    GUILayout.Label(item.name);
+    if(GUILayout.Button("Equip : "+item.name)){
+      if(WeaponToDestory){
+        Destroy (WeaponToDestory.gameObject);
+      }
+      for(var weapon:Transform in AllWeapon){
+        if(weapon.GetComponent(WeaponClass).ID==item.transformID){
+          var newWeapon:Transform;
+          newWeapon=Instantiate(weapon, WeaponPoint.position, WeaponPoint.rotation);
+          newWeapon.parent=WeaponPoint;
+          WeaponToDestory=newWeapon;
+          if(!transform.GetComponent(PlayerOnlineController).Offline){
+             transform.GetComponent(NetworkView).RPC("CreateWeaponOnline",RPCMode.OthersBuffered,item.transformID);
+          }
+        }
+      }
+    }
+  }
+  if(GUILayout.Button("Exit")){
+    ShowInventory=false;
+  }
+} 
+ 
+@RPC
+function CreateWeaponOnline(id:int){
+  if(WeaponToDestory){
+    Destroy (WeaponToDestory.gameObject);
+  }
+  for(var OnlineWeapon:Transform in AllWeapon){
+    if(OnlineWeapon.GetComponent(WeaponClass).ID==id){
+      var newWeaponOnline:Transform;
+      newWeaponOnline=Instantiate(OnlineWeapon, WeaponPoint.position, WeaponPoint.rotation);
+      newWeaponOnline.parent=WeaponPoint;
+      WeaponToDestory=newWeaponOnline;
+    }
+  }
+}
