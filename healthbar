@@ -1,0 +1,118 @@
+#pragma strict
+
+public var maxHealth: float = 100;
+public var curHealth: float = 100; 
+public var healthBarLength: float;
+public var HealthTransform:UI.Image;
+public var recoveryRate:float=1;
+public var Enemy:Transform;
+public var EnemyHealthTransform:UI.Image;
+private var Online:boolean;
+private var Offline:boolean;
+public var c:Canvas;
+public var NManager:Networking;
+
+function OnLevelWasLoaded (){
+  NManager=GameObject.Find("GameManager").GetComponent(Networking);
+  if(c){
+    c.transform.SetParent(null);
+  }
+}
+
+function Start(){
+  if(Network.isClient||Network.isServer){
+    if(!transform.GetComponent(NetworkView).isMine){
+      if(c){
+        Destroy(c.gameObject);
+      }
+    }
+    Online=true;
+  }else{
+    Offline=true;
+  }
+  if(Network.isClient||Offline){
+    if(c){
+      c.transform.SetParent(null);
+    }
+  }
+  NManager=GameObject.Find("GameManager").GetComponent(Networking); 
+  if(!HealthTransform){
+    if(transform.tag=="Player"){
+      print("the health script needs an image to show the player health");
+    }
+  }
+}
+
+function AddjustCurrentHealth(HealthDamage: float){
+  curHealth += HealthDamage; 
+  print("this is called  "+curHealth);
+  if(curHealth < 0){
+    curHealth = 0;
+  }
+  if(curHealth > maxHealth){
+    curHealth = maxHealth;
+  }
+  if(maxHealth < 1){
+    maxHealth = 1 ;
+  }
+  if(transform.GetComponent(NetworkView).isMine||Offline){
+    healthBarLength= Mathf.Clamp((curHealth / maxHealth), 0.0, 1.0);
+    if(Online){
+      transform.GetComponent(NetworkView).RPC("AdjustOnlineHealth", RPCMode.AllBuffered,healthBarLength);
+    }
+    if(curHealth==0){
+      if(Online){
+        if(transform.tag=="Player"){
+          KillOnlinePlayer();
+          if(c){
+            Destroy(c.gameObject);
+          }
+        }else{
+          Destroy(gameObject);
+        }
+      }else{
+        if(transform.tag=="Player"){
+          if(c){
+            Destroy(c.gameObject);
+          }
+        }
+        Destroy(gameObject);
+      }
+    }
+  }
+}
+
+@RPC
+function AdjustOnlineHealth(healthbar:float){
+  healthBarLength=healthbar;
+}
+
+function KillOnlinePlayer(){ 
+  NManager.RespawnPlayer();
+  Network.Destroy(gameObject);
+} 
+
+function DeparentHealth(){
+  if(c){
+    if(c.transform.parent==transform){ 
+    c.transform.SetParent(null); 
+  }
+}
+
+}
+
+function Update(){
+  if(transform.GetComponent(NetworkView).isMine||Offline){
+    if(transform.tag=="Player"){
+      if(HealthTransform){
+        HealthTransform.fillAmount=Mathf.MoveTowards(HealthTransform.fillAmount,healthBarLength, recoveryRate * Time.deltaTime);
+        if(Enemy){
+          EnemyHealthTransform.gameObject.SetActive(true);
+          EnemyHealthTransform.fillAmount=Mathf.MoveTowards(EnemyHealthTransform.fillAmount,Enemy.GetComponent(Healthbar).healthBarLength, recoveryRate * Time.deltaTime);
+        }else{
+          EnemyHealthTransform.gameObject.SetActive(false);
+        }
+      }
+    }
+  }
+}
